@@ -1,13 +1,11 @@
 const express = require('express');
-const puppeteer = require('puppeteer');
+const puppeteer = require('puppeteer-core');
+const chromium = require('@sparticuz/chromium');
 
 const app = express();
 app.use(express.json());
 
 const SECRET_KEY = 'avito_parser_2024';
-
-// Явно указываем путь к Chrome который установили через postinstall
-const CHROME_PATH = '/opt/render/.cache/puppeteer/chrome/linux-121.0.6167.85/chrome-linux64/chrome';
 
 app.get('/', (req, res) => {
   res.json({ status: 'ok', message: 'Avito breadcrumb parser is running' });
@@ -30,15 +28,10 @@ app.post('/get-search-url', async (req, res) => {
     console.log(`[→] Открываю: ${ad_url}`);
 
     browser = await puppeteer.launch({
-      headless: 'new',
-      executablePath: CHROME_PATH,
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-gpu',
-        '--lang=ru-RU',
-      ],
+      args: chromium.args,
+      defaultViewport: chromium.defaultViewport,
+      executablePath: await chromium.executablePath(),
+      headless: chromium.headless,
     });
 
     const page = await browser.newPage();
