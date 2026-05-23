@@ -4,8 +4,10 @@ const puppeteer = require('puppeteer');
 const app = express();
 app.use(express.json());
 
-// Секретный ключ — защита от чужих запросов
 const SECRET_KEY = 'avito_parser_2024';
+
+// Явно указываем путь к Chrome который установили через postinstall
+const CHROME_PATH = '/opt/render/.cache/puppeteer/chrome/linux-121.0.6167.85/chrome-linux64/chrome';
 
 app.get('/', (req, res) => {
   res.json({ status: 'ok', message: 'Avito breadcrumb parser is running' });
@@ -13,7 +15,6 @@ app.get('/', (req, res) => {
 
 app.post('/get-search-url', async (req, res) => {
 
-  // Проверка ключа
   if (req.headers['x-api-key'] !== SECRET_KEY) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
@@ -30,6 +31,7 @@ app.post('/get-search-url', async (req, res) => {
 
     browser = await puppeteer.launch({
       headless: 'new',
+      executablePath: CHROME_PATH,
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
@@ -41,7 +43,6 @@ app.post('/get-search-url', async (req, res) => {
 
     const page = await browser.newPage();
 
-    // Эмулируем обычный браузер
     await page.setUserAgent(
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) ' +
       'AppleWebKit/537.36 (KHTML, like Gecko) ' +
@@ -51,14 +52,12 @@ app.post('/get-search-url', async (req, res) => {
 
     await page.goto(ad_url, { waitUntil: 'networkidle2', timeout: 30000 });
 
-    // Ждём хлебные крошки
     await page.waitForSelector('nav, [data-marker*="breadcrumb"], [class*="breadcrumb"]', {
       timeout: 10000
     }).catch(() => console.log('[!] Селектор не найден, продолжаем...'));
 
     await new Promise(r => setTimeout(r, 2000));
 
-    // Извлекаем ссылки хлебных крошек
     const breadcrumbUrl = await page.evaluate(() => {
       const selectors = [
         '[data-marker="breadcrumbs"] a',
@@ -69,7 +68,6 @@ app.post('/get-search-url', async (req, res) => {
       ];
 
       let links = [];
-
       for (const selector of selectors) {
         const found = Array.from(document.querySelectorAll(selector));
         if (found.length >= 2) {
@@ -78,7 +76,6 @@ app.post('/get-search-url', async (req, res) => {
         }
       }
 
-      // Фильтруем: убираем главную и служебные страницы
       const valid = links
         .map(a => ({ href: a.href, text: a.textContent.trim() }))
         .filter(l =>
@@ -92,20 +89,17 @@ app.post('/get-search-url', async (req, res) => {
         );
 
       if (!valid.length) return null;
-
-      // Последняя валидная = самая глубокая категория
       return valid[valid.length - 1].href.split('?')[0];
     });
 
     if (!breadcrumbUrl) {
-      // Дамп всех ссылок для отладки
       const allLinks = await page.evaluate(() =>
         Array.from(document.querySelectorAll('a[href]'))
           .map(a => a.href)
           .filter(h => h.includes('avito.ru'))
           .slice(0, 30)
       );
-      console.log('[!] Все ссылки на странице:', allLinks);
+      console.log('[!] Все ссылки:', allLinks);
       return res.status(404).json({
         error: 'Хлебные крошки не найдены',
         debug_links: allLinks
