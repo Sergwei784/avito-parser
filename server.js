@@ -43,7 +43,7 @@ app.post('/get-search-url', async (req, res) => {
     );
     await page.setExtraHTTPHeaders({ 'Accept-Language': 'ru-RU,ru;q=0.9' });
 
-    await page.goto(ad_url, { waitUntil: 'networkidle2', timeout: 30000 });
+    await page.goto(ad_url, { waitUntil: 'domcontentloaded', timeout: 60000 });
 
     await page.waitForSelector('nav, [data-marker*="breadcrumb"], [class*="breadcrumb"]', {
       timeout: 10000
